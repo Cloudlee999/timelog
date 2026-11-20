@@ -31,6 +31,19 @@
   #slot { background: #181b21; border-radius: 12px; padding: 11px; text-align: center; }
   #slot .t { font-size: 27px; font-weight: 700; letter-spacing: .5px; }
   #slot .s { font-size: 13px; color: #a9b0bb; margin-top: 3px; }
+  #day { margin-top: 12px; position: relative; padding-top: 9px; }
+  #dayBar { display: flex; height: 26px; border-radius: 6px; overflow: hidden; }
+  #dayBar .seg { display: flex; border-left: 2px solid #181b21; }
+  #dayBar .seg:first-child { border-left: 0; }
+  #dayBar .seg i { flex: 1; background: #2a2f38; }
+  #dayBar .seg:nth-child(even) i { background: #343a45; }
+  #dayBar .seg i.cur { background: #ffffff !important; }
+  #dayMark { position: absolute; top: 0; width: 0; height: 0; margin-left: -6px;
+    border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #ffffff; }
+  #dayLab { position: relative; height: 16px; margin-top: 3px; font-size: 11px; color: #a9b0bb; }
+  #dayLab span { position: absolute; transform: translateX(-50%); }
+  #dayLab span:first-child { transform: none; }
+  #dayLab span:last-child { transform: translateX(-100%); }
   #mult { display: flex; gap: 5px; margin-top: 9px; }
   #mult button { flex: 1; background: #232830; border: 1px solid #2f3540; border-radius: 8px; padding: 8px 0; font-size: 13px; }
   #mult button.on { background: #eef0f3; color: #101216; border-color: #eef0f3; font-weight: 700; }
@@ -93,6 +106,7 @@
   <div id="slot">
     <div class="t" id="slotT">불러오는 중…</div>
     <div class="s" id="slotS"></div>
+    <div id="day"><div id="dayMark"></div><div id="dayBar"></div><div id="dayLab"></div></div>
     <div id="mult"></div>
   </div>
   <div id="grid"></div>
@@ -229,6 +243,32 @@ function render() {
       (pc ? ' · 계획: ' + pc.no + ' ' + pc.name : '');
   }
 
+  // 하루 막대: 0-9 / 9-19 / 19-21 / 21-24시, 오늘 기록은 색으로, 지금 묻는 칸은 흰색 + ▼
+  var bar = $('dayBar'), lab = $('dayLab'); bar.textContent = ''; lab.textContent = '';
+  var curA = -1, curB = -1, isToday = true;
+  if (p.n > 0) {
+    var fd = new Date(p.first), kk = Math.min(mult === 'all' ? p.n : mult, p.n);
+    curA = fd.getHours() * 6 + Math.floor(fd.getMinutes() / 10); curB = curA + kk - 1;
+    isToday = dStr(p.first) === today;
+  } else {
+    var nd = new Date(now); curA = curB = nd.getHours() * 6 + Math.floor(nd.getMinutes() / 10);
+  }
+  var bounds = [0, 9, 19, 21, 24], rec = S.rec || [];
+  for (var si = 0; si < 4; si++) {
+    var seg = el('div', 'seg'); seg.style.flex = (bounds[si + 1] - bounds[si]);
+    for (var ci = bounds[si] * 6; ci < bounds[si + 1] * 6; ci++) {
+      var cell = el('i'), rc = isToday && rec[ci] && S.cats[rec[ci] - 1];
+      if (rc) cell.style.background = rc.color;
+      if (p.n > 0 && ci >= curA && ci <= curB) cell.className = 'cur';
+      seg.appendChild(cell);
+    }
+    bar.appendChild(seg);
+  }
+  bounds.forEach(function (h) { var sp = el('span', '', h + '시'); sp.style.left = (h / 24 * 100) + '%'; lab.appendChild(sp); });
+  $('dayMark').style.left = ((curA + 0.5) / 144 * 100) + '%';
+  $('dayMark').style.borderTopColor = p.n > 0 ? '#ffffff' : '#6f7785';
+  $('day').style.display = loaded ? '' : 'none';
+
   // 한 번에 채울 칸 수
   var m = $('mult'); m.textContent = '';
   [[1, '10분'], [3, '30분'], [6, '1시간'], [12, '2시간'], ['all', '전부']].forEach(function (o) {
@@ -266,7 +306,11 @@ function record(c) {
   for (var i = 0; i < k; i++) {
     var ms = p.first + i * SLOT;
     batch.push({ d: dStr(ms), t: tStr(ms), c: c.no, name: c.name, ms: ms });
-    if (dStr(ms) === today) S.counts[c.no] = (S.counts[c.no] || 0) + 1;
+    if (dStr(ms) === today) {
+      S.counts[c.no] = (S.counts[c.no] || 0) + 1;
+      if (!S.rec) S.rec = [];
+      S.rec[new Date(ms).getHours() * 6 + Math.floor(new Date(ms).getMinutes() / 10)] = c.no;
+    }
   }
   S.lastMs = p.first + (k - 1) * SLOT;
   lastBatch = batch; mult = 1; dirty = true;
@@ -291,7 +335,11 @@ $('undoBtn').onclick = function () {
   var b = lastBatch, today = dStr(Date.now());
   lastBatch = null; sending = true; render();
   google.script.run.withSuccessHandler(function () {
-    b.forEach(function (s) { if (s.d === today && S.counts[s.c]) S.counts[s.c]--; });
+    b.forEach(function (s) {
+      if (s.d !== today) return;
+      if (S.counts[s.c]) S.counts[s.c]--;
+      if (S.rec) S.rec[new Date(s.ms).getHours() * 6 + Math.floor(new Date(s.ms).getMinutes() / 10)] = 0;
+    });
     S.lastMs = b[0].ms - SLOT;
     sending = false; ls('state', S); render();
   }).withFailureHandler(function () {
@@ -457,7 +505,7 @@ function load() {
     });
     if (dirty || sending) {
       // 불러오는 동안 이미 기록을 눌렀으면 기록 위치·횟수는 폰 쪽 값을 유지
-      st.lastMs = Math.max(st.lastMs, S.lastMs); st.counts = S.counts;
+      st.lastMs = Math.max(st.lastMs, S.lastMs); st.counts = S.counts; if (S.rec) st.rec = S.rec;
     }
     S = st; loaded = true; ls('state', S); render(); flush();
     if (!S.goals.length && ls('goalSkip') !== today) openGoals();
@@ -473,7 +521,7 @@ var cached = ls('state');
 if (cached && cached.cats && cached.cats.length === 9 && cached.lastMs) {
   // 저장해둔 상태로 바로 시작 (서버 응답을 기다리지 않음)
   S = cached;
-  if (S.today !== dStr(Date.now())) { S.counts = {}; S.goals = []; S.yGoals = []; S.plan = []; S.today = dStr(Date.now()); }
+  if (S.today !== dStr(Date.now())) { S.counts = {}; S.rec = []; S.goals = []; S.yGoals = []; S.plan = []; S.today = dStr(Date.now()); }
   loaded = true;
 }
 // ---- 서버 연결 설정 ----
