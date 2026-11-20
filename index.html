@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#101216">
+<title>10분 기록</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; height: 100dvh; background: #101216; color: #eef0f3;
+    font-family: -apple-system, "Noto Sans KR", "Malgun Gothic", sans-serif; }
+  body { display: flex; flex-direction: column; max-width: 560px; margin: 0 auto; padding: 10px; gap: 8px; }
+  button, input, select { font: inherit; color: inherit; }
+  .top { display: flex; align-items: center; gap: 6px; }
+  .top .date { flex: 1; font-size: 15px; color: #a9b0bb; }
+  .sm { background: #1c2027; border: 1px solid #2c323c; border-radius: 9px; padding: 8px 9px; font-size: 14px; white-space: nowrap; }
+  .sm:disabled { opacity: .35; }
+  #sync { font-size: 12px; color: #a9b0bb; min-width: 46px; text-align: right; }
+  #sync.err { color: #ff6b6b; }
+
+  #goals { display: flex; flex-direction: column; gap: 5px; }
+  .goal { background: #181b21; border-radius: 9px; padding: 7px 10px; font-size: 13px; }
+  .goal .row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+  .goal .bar { height: 6px; background: #2a2f38; border-radius: 3px; overflow: hidden; }
+  .goal .bar i { display: block; height: 100%; border-radius: 3px; }
+  .goal.done .row b { color: #2fbf71; }
+
+  #slot { background: #181b21; border-radius: 12px; padding: 11px; text-align: center; }
+  #slot .t { font-size: 27px; font-weight: 700; letter-spacing: .5px; }
+  #slot .s { font-size: 13px; color: #a9b0bb; margin-top: 3px; }
+  #mult { display: flex; gap: 5px; margin-top: 9px; }
+  #mult button { flex: 1; background: #232830; border: 1px solid #2f3540; border-radius: 8px; padding: 8px 0; font-size: 13px; }
+  #mult button.on { background: #eef0f3; color: #101216; border-color: #eef0f3; font-weight: 700; }
+
+  #grid { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 8px; min-height: 300px; }
+  #grid button { border-radius: 14px; border: 2px solid; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 4px; padding: 4px; }
+  #grid button:active { transform: scale(.96); }
+  #grid button:disabled { opacity: .35; }
+  #grid .n { font-size: 13px; opacity: .7; }
+  #grid .nm { font-size: 19px; font-weight: 700; word-break: keep-all; text-align: center; }
+  #grid .c { font-size: 12px; opacity: .8; }
+
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: none; align-items: flex-end; justify-content: center; z-index: 10; }
+  .modal.show { display: flex; }
+  .sheet { background: #181b21; width: 100%; max-width: 560px; max-height: 92%; overflow: auto;
+    border-radius: 16px 16px 0 0; padding: 16px; }
+  .sheet h2 { margin: 0 0 4px; font-size: 18px; }
+  .sheet p { margin: 0 0 12px; font-size: 13px; color: #a9b0bb; }
+  .line { display: flex; gap: 6px; margin-bottom: 7px; align-items: center; }
+  .line input[type=text], .line input[type=number], .line select {
+    background: #101216; border: 1px solid #2f3540; border-radius: 8px; padding: 10px; min-width: 0; }
+  .line input[type=text] { flex: 1; }
+  .full { width: 100%; background: #101216; border: 1px solid #2f3540; border-radius: 8px; padding: 11px; margin-bottom: 8px; }
+  #setupMsg { font-size: 13px; color: #ff6b6b; min-height: 18px; }
+  .line input[type=number] { width: 64px; text-align: center; }
+  .line select { width: 98px; }
+  .line input[type=color] { width: 42px; height: 40px; border: 0; background: none; padding: 0; }
+  .line .no { width: 18px; text-align: center; color: #a9b0bb; }
+  .line .x { background: none; border: 0; font-size: 20px; color: #a9b0bb; padding: 4px 8px; }
+  #pal { display: flex; gap: 4px; margin-bottom: 8px; }
+  #pal button { flex: 1; border-radius: 8px; border: 2px solid transparent; padding: 7px 0 5px; font-weight: 700;
+    display: flex; flex-direction: column; align-items: center; line-height: 1.1; min-width: 0; }
+  #pal button small { font-size: 9px; font-weight: 400; overflow: hidden; max-width: 100%; white-space: nowrap; }
+  #pal button.on { border-color: #fff; }
+  #pgrid { display: grid; grid-template-columns: 44px repeat(6, 1fr); gap: 2px; user-select: none; }
+  #pgrid div { height: 24px; border-radius: 4px; background: #232830; display: flex; align-items: center;
+    justify-content: center; font-size: 12px; font-weight: 700; }
+  #pgrid div.h { background: #101216; color: #a9b0bb; font-weight: 400; }
+  #pgrid div.hd { background: none; color: #6f7785; font-weight: 400; height: 16px; font-size: 10px; }
+  #psum { font-size: 12px; color: #a9b0bb; margin: 8px 0 0; min-height: 16px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  .tabs button { flex: 1; padding: 9px; border-radius: 9px; border: 1px solid #2f3540; background: #232830; }
+  .tabs button.on { background: #eef0f3; color: #101216; font-weight: 700; }
+  .acts { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+  .acts button { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid #2f3540; background: #232830; white-space: nowrap; }
+  .acts button.pri { background: #eef0f3; color: #101216; font-weight: 700; border-color: #eef0f3; }
+</style>
+</head>
+<body>
+  <div class="top">
+    <div class="date" id="date"></div>
+    <span id="sync"></span>
+    <button class="sm" id="undoBtn" disabled>↩</button>
+    <button class="sm" id="goalBtn">🎯 목표</button>
+    <button class="sm" id="planBtn">📅 계획</button>
+    <button class="sm" id="cfgBtn">⚙</button>
+  </div>
+  <div id="goals"></div>
+  <div id="slot">
+    <div class="t" id="slotT">불러오는 중…</div>
+    <div class="s" id="slotS"></div>
+    <div id="mult"></div>
+  </div>
+  <div id="grid"></div>
+
+  <div class="modal" id="goalM"><div class="sheet">
+    <h2>오늘의 목표</h2>
+    <p>1칸 = 10분. 예) "공부 집중" · 3 공부 · 10칸 (= 1시간 40분)</p>
+    <div id="goalRows"></div>
+    <div class="acts">
+      <button id="goalAdd">+ 목표 추가</button>
+      <button id="goalY">어제 목표 불러오기</button>
+    </div>
+    <div class="acts">
+      <button id="goalSkip">닫기</button>
+      <button class="pri" id="goalSave">저장</button>
+    </div>
+  </div></div>
+
+  <div class="modal" id="planM"><div class="sheet">
+    <h2>시간 계획</h2>
+    <p>번호를 고르고 칸을 눌러. 왼쪽 시간을 누르면 그 1시간이 통째로 채워져.</p>
+    <div class="tabs"><button id="pToday">오늘</button><button id="pTom">내일</button></div>
+    <div id="pal"></div>
+    <div id="pgrid"></div>
+    <div id="psum"></div>
+    <div class="acts">
+      <button id="planClose">닫기</button>
+      <button class="pri" id="planSave">저장</button>
+    </div>
+  </div></div>
+
+  <div class="modal" id="cfgM"><div class="sheet">
+    <h2>버튼 설정</h2>
+    <p>9개 버튼의 이름과 색을 정해. 이름을 바꿔도 예전 기록은 그대로 남아.</p>
+    <div id="cfgRows"></div>
+    <div class="acts">
+      <button id="cfgConn">서버 연결 설정</button>
+      <button id="cfgCancel">닫기</button>
+      <button class="pri" id="cfgSave">저장</button>
+    </div>
+  </div></div>
+
+  <div class="modal" id="setupM"><div class="sheet">
+    <h2>서버 연결</h2>
+    <p>처음 한 번만 하면 돼. 구글 스프레드시트와 연결하는 정보야.</p>
+    <input class="full" id="setupUrl" type="url" placeholder="웹 앱 URL (https://script.google.com/macros/s/…/exec)" autocomplete="off">
+    <input class="full" id="setupKey" type="text" placeholder="비밀키 (설정 시트 E2 칸)" autocomplete="off">
+    <div id="setupMsg"></div>
+    <div class="acts"><button class="pri" id="setupGo">연결</button></div>
+  </div></div>
+
+<script>
+// ---- 서버(구글 Apps Script) 호출 ----
+var CONN = null;
+try { CONN = JSON.parse(localStorage.getItem('conn')); } catch (e) {}
+function call(fn, args, ok, bad) {
+  if (!CONN) { bad(new Error('서버 연결이 안 돼 있어')); return; }
+  fetch(CONN.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ key: CONN.key, fn: fn, args: args }) })
+    .then(function (r) { return r.json(); })
+    .then(function (j) { if (j.ok) ok(j.data); else bad(new Error(j.error)); })
+    .catch(function (e) { bad(e); });
+}
+var google = { script: {} };
+Object.defineProperty(google.script, 'run', { get: function () {
+  var ok = function () {}, bad = function () {};
+  var p = new Proxy({}, { get: function (_, k) {
+    if (k === 'withSuccessHandler') return function (f) { ok = f; return p; };
+    if (k === 'withFailureHandler') return function (f) { bad = f; return p; };
+    return function () { call(k, Array.prototype.slice.call(arguments), ok, bad); };
+  } });
+  return p;
+} });
+
+var SLOT = 600000;
+var S = { cats: [], lastMs: 0, counts: {}, goals: [], yGoals: [], plan: [], today: '' };
+var queue = [], sending = false, mult = 1, lastBatch = null, loaded = false, dirty = false;
+var $ = function (id) { return document.getElementById(id); };
+
+function ls(k, v) {
+  try {
+    if (v === undefined) return JSON.parse(localStorage.getItem(k));
+    localStorage.setItem(k, JSON.stringify(v));
+  } catch (e) {}
+  return null;
+}
+function p2(n) { return (n < 10 ? '0' : '') + n; }
+function dStr(ms) { var d = new Date(ms); return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()); }
+function tStr(ms) { var d = new Date(ms); return p2(d.getHours()) + ':' + p2(d.getMinutes()); }
+function dur(n) { var m = n * 10, h = Math.floor(m / 60); m = m % 60; return (h ? h + '시간' : '') + (m || !h ? (h ? ' ' : '') + m + '분' : ''); }
+function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+
+// 아직 기록 안 한 "끝난 10분 칸" 범위
+function pending() {
+  var lastDone = Math.floor(Date.now() / SLOT) * SLOT - SLOT;
+  var first = S.lastMs ? S.lastMs + SLOT : lastDone;
+  var n = Math.round((lastDone - first) / SLOT) + 1;
+  return { first: first, n: n > 0 ? n : 0 };
+}
+
+function render() {
+  var now = Date.now(), today = dStr(now);
+  var wd = '일월화수목금토'.charAt(new Date(now).getDay());
+  $('date').textContent = today.slice(5).replace('-', '/') + ' (' + wd + ')';
+
+  // 목표
+  var g = $('goals'); g.textContent = '';
+  S.goals.forEach(function (x) {
+    var c = S.cats[x.cat - 1] || { name: x.cat, color: '#888' };
+    var have = S.counts[x.cat] || 0;
+    var box = el('div', 'goal' + (have >= x.target ? ' done' : ''));
+    var row = el('div', 'row');
+    row.appendChild(el('span', '', (x.name || c.name) + ' · ' + x.cat + ' ' + c.name));
+    row.appendChild(el('b', '', have + ' / ' + x.target + '칸' + (have >= x.target ? ' ✓' : '')));
+    var bar = el('div', 'bar'), fill = el('i');
+    fill.style.width = Math.min(100, x.target ? have / x.target * 100 : 0) + '%';
+    fill.style.background = c.color;
+    bar.appendChild(fill); box.appendChild(row); box.appendChild(bar); g.appendChild(box);
+  });
+
+  // 기록할 칸
+  var p = pending(), planned = 0;
+  if (!loaded) { $('slotT').textContent = '불러오는 중…'; $('slotS').textContent = ''; }
+  else if (p.n === 0) {
+    $('slotT').textContent = '모두 기록됨';
+    $('slotS').textContent = '다음 칸은 ' + tStr(S.lastMs + 2 * SLOT) + '에 열려';
+  } else {
+    var k = Math.min(mult === 'all' ? p.n : mult, p.n);
+    $('slotT').textContent = tStr(p.first) + ' – ' + tStr(p.first + k * SLOT);
+    var days = dStr(p.first) !== today ? dStr(p.first).slice(5).replace('-', '/') + ' ' : '';
+    planned = planAt(p.first);
+    var pc = planned && S.cats[planned - 1];
+    $('slotS').textContent = days + '뭐 했어? · 밀린 칸 ' + p.n + '개 (' + dur(p.n) + ')' +
+      (pc ? ' · 계획: ' + pc.no + ' ' + pc.name : '');
+  }
+
+  // 한 번에 채울 칸 수
+  var m = $('mult'); m.textContent = '';
+  [[1, '10분'], [3, '30분'], [6, '1시간'], [12, '2시간'], ['all', '전부']].forEach(function (o) {
+    var b = el('button', mult === o[0] ? 'on' : '', o[1]);
+    b.onclick = function () { mult = o[0]; render(); };
+    m.appendChild(b);
+  });
+  m.style.display = p.n > 1 ? 'flex' : 'none';
+
+  // 9개 버튼
+  var grid = $('grid'); grid.textContent = '';
+  S.cats.forEach(function (c) {
+    var b = el('button');
+    b.style.borderColor = c.color; b.style.background = c.color + '30';
+    if (planned === c.no) b.style.boxShadow = '0 0 0 3px #eef0f3';
+    b.disabled = !loaded || p.n === 0;
+    b.appendChild(el('span', 'n', c.no));
+    b.appendChild(el('span', 'nm', c.name));
+    var cnt = S.counts[c.no] || 0;
+    b.appendChild(el('span', 'c', cnt ? cnt + '칸 · ' + dur(cnt) : '–'));
+    b.onclick = function () { record(c); };
+    grid.appendChild(b);
+  });
+
+  $('undoBtn').disabled = !lastBatch || sending || queue.length > 0;
+  $('sync').className = '';
+  if (sending || queue.length) $('sync').textContent = '저장 중…';
+  else if (loaded) $('sync').textContent = '';
+}
+
+function record(c) {
+  var p = pending();
+  if (!p.n) return;
+  var k = Math.min(mult === 'all' ? p.n : mult, p.n), today = dStr(Date.now()), batch = [];
+  for (var i = 0; i < k; i++) {
+    var ms = p.first + i * SLOT;
+    batch.push({ d: dStr(ms), t: tStr(ms), c: c.no, name: c.name, ms: ms });
+    if (dStr(ms) === today) S.counts[c.no] = (S.counts[c.no] || 0) + 1;
+  }
+  S.lastMs = p.first + (k - 1) * SLOT;
+  lastBatch = batch; mult = 1; dirty = true;
+  queue.push(batch); ls('q', queue); ls('state', S);
+  render(); flush();
+}
+
+function flush() {
+  if (sending || !queue.length) return;
+  sending = true; render();
+  google.script.run.withSuccessHandler(function () {
+    queue.shift(); ls('q', queue); sending = false; render(); flush();
+  }).withFailureHandler(function () {
+    sending = false; render();
+    $('sync').className = 'err'; $('sync').textContent = '저장 실패';
+    setTimeout(flush, 8000);
+  }).saveSlots(queue[0]);
+}
+
+$('undoBtn').onclick = function () {
+  if (!lastBatch || sending || queue.length) return;
+  var b = lastBatch, today = dStr(Date.now());
+  lastBatch = null; sending = true; render();
+  google.script.run.withSuccessHandler(function () {
+    b.forEach(function (s) { if (s.d === today && S.counts[s.c]) S.counts[s.c]--; });
+    S.lastMs = b[0].ms - SLOT;
+    sending = false; ls('state', S); render();
+  }).withFailureHandler(function () {
+    sending = false; lastBatch = b; render();
+    $('sync').className = 'err'; $('sync').textContent = '취소 실패';
+  }).undoLast(b.length);
+};
+
+// ---- 목표 ----
+var draft = [];
+function goalRows() {
+  var box = $('goalRows'); box.textContent = '';
+  draft.forEach(function (g, i) {
+    var line = el('div', 'line');
+    var nm = el('input'); nm.type = 'text'; nm.placeholder = '목표 이름'; nm.value = g.name;
+    nm.oninput = function () { g.name = nm.value; };
+    var sel = el('select');
+    S.cats.forEach(function (c) { var o = el('option', '', c.no + ' ' + c.name); o.value = c.no; sel.appendChild(o); });
+    sel.value = g.cat; sel.onchange = function () { g.cat = Number(sel.value); };
+    var num = el('input'); num.type = 'number'; num.min = 1; num.value = g.target; num.inputMode = 'numeric';
+    num.oninput = function () { g.target = Number(num.value) || 0; };
+    var x = el('button', 'x', '×'); x.onclick = function () { draft.splice(i, 1); goalRows(); };
+    line.appendChild(nm); line.appendChild(sel); line.appendChild(num); line.appendChild(el('span', '', '칸')); line.appendChild(x);
+    box.appendChild(line);
+  });
+  $('goalY').style.display = S.yGoals.length ? '' : 'none';
+}
+function openGoals() {
+  draft = S.goals.map(function (g) { return { name: g.name, cat: g.cat, target: g.target }; });
+  if (!draft.length) draft.push({ name: '', cat: 3, target: 10 });
+  goalRows(); $('goalM').classList.add('show');
+}
+$('goalBtn').onclick = openGoals;
+$('goalAdd').onclick = function () { draft.push({ name: '', cat: 1, target: 6 }); goalRows(); };
+$('goalY').onclick = function () { draft = S.yGoals.map(function (g) { return { name: g.name, cat: g.cat, target: g.target }; }); goalRows(); };
+$('goalSkip').onclick = function () { ls('goalSkip', dStr(Date.now())); $('goalM').classList.remove('show'); };
+$('goalSave').onclick = function () {
+  var today = dStr(Date.now());
+  S.goals = draft.filter(function (g) { return g.target > 0; });
+  ls('goalSkip', today); ls('state', S);
+  $('goalM').classList.remove('show'); render();
+  google.script.run.withFailureHandler(function () {
+    $('sync').className = 'err'; $('sync').textContent = '목표 저장 실패';
+  }).saveGoals(today, S.goals);
+};
+
+// ---- 시간 계획 ----
+function planAt(ms) {
+  if (dStr(ms) !== S.today || !S.plan) return 0;
+  var d = new Date(ms);
+  return S.plan[d.getHours() * 6 + Math.floor(d.getMinutes() / 10)] || 0;
+}
+var pd = [], pSel = 3, pDate = '', pBusy = false;
+function planRender() {
+  var today = dStr(Date.now());
+  $('pToday').className = pDate === today ? 'on' : '';
+  $('pTom').className = pDate === today ? '' : 'on';
+  var pal = $('pal'); pal.textContent = '';
+  S.cats.forEach(function (c) {
+    var b = el('button', pSel === c.no ? 'on' : '');
+    b.style.background = c.color + '55';
+    b.appendChild(el('span', '', c.no)); b.appendChild(el('small', '', c.name));
+    b.onclick = function () { pSel = c.no; planRender(); };
+    pal.appendChild(b);
+  });
+  var er = el('button', pSel === 0 ? 'on' : ''); er.style.background = '#232830';
+  er.appendChild(el('span', '', '✕')); er.appendChild(el('small', '', '지움'));
+  er.onclick = function () { pSel = 0; planRender(); };
+  pal.appendChild(er);
+
+  var g = $('pgrid'); g.textContent = '';
+  g.appendChild(el('div', 'hd', ''));
+  for (var j = 0; j < 6; j++) g.appendChild(el('div', 'hd', j + '0'));
+  if (pBusy) { $('psum').textContent = '불러오는 중…'; return; }
+  var cnt = {};
+  for (var h = 0; h < 24; h++) {
+    (function (h) {
+      var hl = el('div', 'h', h + ':00');
+      hl.onclick = function () {
+        var full = true;
+        for (var k = 0; k < 6; k++) if (pd[h * 6 + k] !== pSel) full = false;
+        for (k = 0; k < 6; k++) pd[h * 6 + k] = full ? 0 : pSel;
+        planRender();
+      };
+      g.appendChild(hl);
+      for (var j = 0; j < 6; j++) {
+        (function (i) {
+          var v = pd[i] || 0, c = v && S.cats[v - 1];
+          var cell = el('div', '', v || '');
+          if (c) { cell.style.background = c.color; cell.style.color = '#101216'; cnt[v] = (cnt[v] || 0) + 1; }
+          cell.onclick = function () { pd[i] = pd[i] === pSel ? 0 : pSel; planRender(); };
+          g.appendChild(cell);
+        })(h * 6 + j);
+      }
+    })(h);
+  }
+  var parts = [];
+  S.cats.forEach(function (c) { if (cnt[c.no]) parts.push(c.no + ' ' + c.name + ' ' + cnt[c.no] + '칸(' + dur(cnt[c.no]) + ')'); });
+  $('psum').textContent = parts.join(' · ');
+}
+function planLoad(date) {
+  pDate = date;
+  if (date === S.today) { pd = (S.plan || []).slice(); pBusy = false; planRender(); return; }
+  pBusy = true; pd = []; planRender();
+  google.script.run.withSuccessHandler(function (arr) {
+    if (pDate !== date) return;
+    pd = arr; pBusy = false; planRender();
+  }).withFailureHandler(function () {
+    pBusy = false; planRender(); $('psum').textContent = '불러오기 실패';
+  }).getPlan(date);
+}
+$('planBtn').onclick = function () { $('planM').classList.add('show'); planLoad(dStr(Date.now())); };
+$('pToday').onclick = function () { planLoad(dStr(Date.now())); };
+$('pTom').onclick = function () { planLoad(dStr(Date.now() + 86400000)); };
+$('planClose').onclick = function () { $('planM').classList.remove('show'); };
+$('planSave').onclick = function () {
+  if (pBusy) return;
+  var arr = [];
+  for (var i = 0; i < 144; i++) arr.push(pd[i] || 0);
+  if (pDate === S.today) { S.plan = arr; ls('state', S); }
+  $('planM').classList.remove('show'); render();
+  google.script.run.withFailureHandler(function () {
+    $('sync').className = 'err'; $('sync').textContent = '계획 저장 실패';
+  }).savePlan(pDate, arr);
+};
+
+// ---- 버튼 설정 ----
+$('cfgBtn').onclick = function () {
+  var box = $('cfgRows'); box.textContent = '';
+  S.cats.forEach(function (c) {
+    var line = el('div', 'line');
+    line.appendChild(el('span', 'no', c.no));
+    var nm = el('input'); nm.type = 'text'; nm.value = c.name; nm.maxLength = 12;
+    var col = el('input'); col.type = 'color'; col.value = c.color;
+    line.appendChild(nm); line.appendChild(col); box.appendChild(line);
+  });
+  $('cfgM').classList.add('show');
+};
+$('cfgCancel').onclick = function () { $('cfgM').classList.remove('show'); };
+$('cfgSave').onclick = function () {
+  var lines = $('cfgRows').children;
+  S.cats = S.cats.map(function (c, i) {
+    var inp = lines[i].getElementsByTagName('input');
+    return { no: c.no, name: inp[0].value.trim() || String(c.no), color: inp[1].value };
+  });
+  ls('state', S); $('cfgM').classList.remove('show'); render();
+  google.script.run.withFailureHandler(function () {
+    $('sync').className = 'err'; $('sync').textContent = '설정 저장 실패';
+  }).saveCats(S.cats);
+};
+
+// ---- 시작 ----
+function load() {
+  var now = Date.now(), today = dStr(now);
+  google.script.run.withSuccessHandler(function (st) {
+    // 아직 서버에 안 올라간 기록은 화면에 다시 반영
+    queue.forEach(function (batch) {
+      batch.forEach(function (s) {
+        if (s.ms > st.lastMs && s.d === today) st.counts[s.c] = (st.counts[s.c] || 0) + 1;
+      });
+      var end = batch[batch.length - 1].ms;
+      if (end > st.lastMs) st.lastMs = end;
+    });
+    if (dirty || sending) {
+      // 불러오는 동안 이미 기록을 눌렀으면 기록 위치·횟수는 폰 쪽 값을 유지
+      st.lastMs = Math.max(st.lastMs, S.lastMs); st.counts = S.counts;
+    }
+    S = st; loaded = true; ls('state', S); render(); flush();
+    if (!S.goals.length && ls('goalSkip') !== today) openGoals();
+  }).withFailureHandler(function (e) {
+    if (loaded) { $('sync').className = 'err'; $('sync').textContent = '오프라인'; return; }
+    $('slotT').textContent = '불러오기 실패';
+    $('slotS').textContent = (e && e.message) || '인터넷 연결을 확인해줘';
+  }).getState(today, dStr(now - 86400000));
+}
+
+queue = ls('q') || [];
+var cached = ls('state');
+if (cached && cached.cats && cached.cats.length === 9 && cached.lastMs) {
+  // 저장해둔 상태로 바로 시작 (서버 응답을 기다리지 않음)
+  S = cached;
+  if (S.today !== dStr(Date.now())) { S.counts = {}; S.goals = []; S.yGoals = []; S.plan = []; S.today = dStr(Date.now()); }
+  loaded = true;
+}
+// ---- 서버 연결 설정 ----
+function openSetup() {
+  $('setupUrl').value = CONN ? CONN.url : ''; $('setupKey').value = CONN ? CONN.key : '';
+  $('setupMsg').textContent = ''; $('setupM').classList.add('show');
+}
+$('cfgConn').onclick = function () { $('cfgM').classList.remove('show'); openSetup(); };
+$('setupGo').onclick = function () {
+  var url = $('setupUrl').value.trim(), key = $('setupKey').value.trim(), old = CONN;
+  if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(url)) { $('setupMsg').textContent = 'URL은 https://script.google.com/ 으로 시작해서 /exec 로 끝나야 해'; return; }
+  if (!key) { $('setupMsg').textContent = '비밀키를 넣어줘'; return; }
+  $('setupMsg').textContent = '확인 중…';
+  CONN = { url: url, key: key };
+  call('getPlan', ['2000-01-01'], function () {
+    ls('conn', CONN); $('setupM').classList.remove('show'); loaded = false; dirty = false; load();
+  }, function (e) {
+    CONN = old;
+    $('setupMsg').textContent = '연결 실패: ' + ((e && e.message) || '') + ' (URL·비밀키, 배포 액세스 권한 "모든 사용자" 확인)';
+  });
+};
+
+render();
+if (CONN) load(); else openSetup();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
+setInterval(render, 20000);
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden) return;
+  if (CONN && S.today !== dStr(Date.now())) { dirty = false; load(); }
+  render();
+});
+</script>
+</body>
+</html>
