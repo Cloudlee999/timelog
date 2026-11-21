@@ -14,7 +14,8 @@
     font-family: -apple-system, "Noto Sans KR", "Malgun Gothic", sans-serif; }
   /* 화면에 실제로 보이는 영역에 딱 맞춤 (아래 내비게이션 바에 가려지지 않게) */
   body { position: fixed; top: 0; left: 0; right: 0; height: var(--vh, 100%); display: flex; flex-direction: column;
-    max-width: 560px; margin: 0 auto; padding: 10px; gap: 8px; overflow-y: auto; }
+    max-width: 560px; margin: 0 auto; padding: 10px; gap: 8px; overflow-y: auto;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px) + var(--pb, 0px)); }
   body > * { flex-shrink: 0; }
   button, input, select { font: inherit; color: inherit; }
   .top { display: flex; gap: 5px; }
@@ -206,6 +207,9 @@
     <h2>버튼 설정</h2>
     <p>9개 버튼의 이름과 색을 정해. 이름을 바꿔도 예전 기록은 그대로 남아.</p>
     <div id="cfgRows"></div>
+    <h3>화면 아래 여백</h3>
+    <p>맨 아래 버튼이 폰 아래쪽 바에 가려지면 +를 눌러 띄워. 펼친 화면과 접은 화면은 따로 저장되고, 지금 보고 있는 화면에 적용돼.</p>
+    <div class="line"><button class="x" id="padMinus">−</button><span id="padVal" style="min-width:60px;text-align:center"></span><button class="x" id="padPlus">+</button></div>
     <h3>시간 묶음 표시</h3>
     <p>칸 그림에서 배경색으로 묶어 보여줄 시간대야. 몇 시부터 몇 시까지인지 숫자(0~24)로 적고 색을 골라. 색은 칸이 잘 보이게 연하게 깔려.</p>
     <div id="grpRows"></div>
@@ -232,8 +236,17 @@ function fitVh() {
   var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
   if (h) document.documentElement.style.setProperty('--vh', Math.floor(h) + 'px');
 }
-fitVh();
-window.addEventListener('resize', fitVh);
+// 아래 여백: 폰 아래쪽 바(작업 표시줄 등)에 화면이 가려질 때 띄우는 높이. 펼친 화면/접은 화면 따로 저장
+function padKey() { return window.innerWidth >= 600 ? 'padWide' : 'padNarrow'; }
+function padGet() {
+  var v = null;
+  try { v = localStorage.getItem(padKey()); } catch (e) {}
+  if (v === null || v === '') return (padKey() === 'padWide' && /Android/.test(navigator.userAgent)) ? 50 : 0;
+  return Number(v) || 0;
+}
+function padApply() { document.documentElement.style.setProperty('--pb', padGet() + 'px'); }
+fitVh(); padApply();
+window.addEventListener('resize', function () { fitVh(); padApply(); });
 if (window.visualViewport) window.visualViewport.addEventListener('resize', fitVh);
 
 // ---- 서버(구글 Apps Script) 호출 ----
@@ -749,9 +762,17 @@ $('cfgBtn').onclick = function () {
     line.appendChild(nm); line.appendChild(col); box.appendChild(line);
   });
   grpDraft = (S.groups || DEF_GROUPS).map(function (g, i) { return [g[0], g[1], g[2] || GRP_COLORS[i % 2]]; });
-  grpRender();
+  grpRender(); padShow();
   $('cfgM').classList.add('show');
 };
+function padShow() { $('padVal').textContent = padGet() + 'px'; }
+function padStep(d) {
+  var v = Math.max(0, Math.min(200, padGet() + d));
+  try { localStorage.setItem(padKey(), String(v)); } catch (e) {}
+  padApply(); padShow();
+}
+$('padMinus').onclick = function () { padStep(-10); };
+$('padPlus').onclick = function () { padStep(10); };
 var grpDraft = [];
 function grpRender() {
   var box = $('grpRows'); box.textContent = '';
