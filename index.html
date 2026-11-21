@@ -24,9 +24,14 @@
   #sync { font-size: 12px; color: #a9b0bb; }
   #sync.err { color: #ff6b6b; }
 
-  #goals { display: grid; gap: 5px; }
+  #goals { display: flex; gap: 5px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none;
+    flex-shrink: 0; }
+  #goals::-webkit-scrollbar { display: none; }
   #goals:empty { display: none; }
-  .goal { background: #181b21; border-radius: 9px; padding: 6px 9px; font-size: 12.5px; min-width: 0; }
+  .goal { background: #181b21; border-radius: 9px; padding: 6px 9px; font-size: 12.5px; min-width: 0;
+    flex: 0 0 calc((100% - 10px) / 3); scroll-snap-align: start; }
+  .goal.w1 { flex-basis: 100%; }
+  .goal.w2 { flex-basis: calc((100% - 5px) / 2); }
   .goal .row { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
   .goal .row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .goal .row b { white-space: nowrap; }
@@ -37,7 +42,7 @@
   #slot { background: #181b21; border-radius: 12px; padding: 11px; text-align: center; }
   #slot .t { font-size: 27px; font-weight: 700; letter-spacing: .5px; }
   #slot .s { font-size: 13px; color: #a9b0bb; margin-top: 3px; }
-  #day { margin-top: 12px; display: flex; flex-direction: column; gap: 9px; }
+  #day { margin: 12px auto 0; display: flex; flex-direction: column; gap: 9px; width: 100%; max-width: 400px; }
   .dl { display: flex; align-items: center; gap: 5px; }
   .dl.sp { margin-top: 8px; }
   .dl .lb { width: 16px; font-size: 10px; color: #8f97a3; text-align: right; }
@@ -276,12 +281,11 @@ function render() {
 
   // 목표
   var g = $('goals'); g.textContent = '';
-  var gn = S.goals.length, gcols = gn <= 1 ? 1 : gn <= 4 ? 2 : 3;   // 목표가 많으면 한 줄에 2~3개
-  g.style.gridTemplateColumns = 'repeat(' + gcols + ', 1fr)';
+  var gn = S.goals.length, gcols = gn <= 1 ? 1 : gn === 2 ? 2 : 3;   // 한 줄에 3개까지, 넘치면 좌우로 밀어서 봄
   S.goals.forEach(function (x) {
     var c = S.cats[x.cat - 1] || { name: x.cat, color: '#888' };
     var have = S.counts[x.cat] || 0;
-    var box = el('div', 'goal' + (have >= x.target ? ' done' : ''));
+    var box = el('div', 'goal' + (have >= x.target ? ' done' : '') + (gcols < 3 ? ' w' + gcols : ''));
     var row = el('div', 'row');
     row.appendChild(el('span', '', gcols === 1 ? (x.name || c.name) + ' · ' + x.cat + ' ' + c.name : (x.name || x.cat + ' ' + c.name)));
     row.appendChild(el('b', '', gcols === 1 ? have + ' / ' + x.target + '칸' + (have >= x.target ? ' ✓' : '')
